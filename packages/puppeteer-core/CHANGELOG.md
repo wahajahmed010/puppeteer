@@ -1,5 +1,14 @@
 # Changelog
 
+## [24.43.0](https://github.com/puppeteer/puppeteer/compare/puppeteer-core-v24.42.0...puppeteer-core-v24.43.0) (2026-04-24)
+
+
+### 🎉 Features
+
+* Implement allowlist ([#14897](https://github.com/puppeteer/puppeteer/issues/14897)) ([e7e31f8](https://github.com/puppeteer/puppeteer/commit/e7e31f8a33b95bb79958ca6077f418c21ea6c88d))
+* roll to Firefox 150.0 ([#14900](https://github.com/puppeteer/puppeteer/issues/14900)) ([beab61b](https://github.com/puppeteer/puppeteer/commit/beab61bdb011679a00e7a0719632f7d09f00431a))
+* **webmcp:** Add support for untrustedContent WebMCPAnnotation ([#14901](https://github.com/puppeteer/puppeteer/issues/14901)) ([0314942](https://github.com/puppeteer/puppeteer/commit/0314942d5a1997c34afb8bb8660f8263c4975921))
+
 ## [24.42.0](https://github.com/puppeteer/puppeteer/compare/puppeteer-core-v24.41.0...puppeteer-core-v24.42.0) (2026-04-20)
 
 
