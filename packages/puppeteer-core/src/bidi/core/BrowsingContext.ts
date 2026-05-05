@@ -284,6 +284,8 @@ export class BrowsingContext extends EventEmitter<{
       // Note: we should not update this.#url at this point since the context
       // has not finished navigating to the info.url yet.
 
+      // Dispose all pending requests from the previous navigation to prevent
+      // memory leaks from requests that may never complete.
       for (const [id, request] of this.#requests) {
         if (request.disposed) {
           this.#requests.delete(id);
@@ -718,6 +720,14 @@ export class BrowsingContext extends EventEmitter<{
     this.#reason ??=
       'Browsing context already closed, probably because the user context closed.';
     this.emit('closed', {reason: this.#reason});
+
+    // Clean up remaining requests to prevent memory leaks.
+    for (const request of this.#requests.values()) {
+      if (!request.disposed) {
+        request[disposeSymbol]();
+      }
+    }
+    this.#requests.clear();
 
     this.#disposables.dispose();
     super[disposeSymbol]();

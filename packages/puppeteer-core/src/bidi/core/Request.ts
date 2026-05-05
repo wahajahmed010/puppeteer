@@ -50,6 +50,19 @@ export class Request extends EventEmitter<{
   readonly #disposables = new DisposableStack();
   #event: Bidi.Network.BeforeRequestSentParameters;
 
+  // Cached values so getters still work after disposal nulls #event.
+  readonly #id: string;
+  readonly #url: string;
+  readonly #method: string;
+  readonly #headers: Bidi.Network.Header[];
+  readonly #initiator: Bidi.Network.Initiator | undefined;
+  readonly #navigation: string | undefined;
+  readonly #isBlocked: boolean;
+  readonly #resourceType: string | undefined;
+  readonly #postData: string | undefined;
+  readonly #hasPostData: boolean;
+  #timings: Bidi.Network.FetchTimingInfo;
+
   private constructor(
     browsingContext: BrowsingContext,
     event: Bidi.Network.BeforeRequestSentParameters,
@@ -58,6 +71,28 @@ export class Request extends EventEmitter<{
 
     this.#browsingContext = browsingContext;
     this.#event = event;
+
+    // Cache values from the event so getters work after disposal.
+    this.#id = event.request.request;
+    this.#url = event.request.url;
+    this.#method = event.request.method;
+    this.#headers = event.request.headers;
+    this.#initiator = {
+      ...event.initiator,
+      // Initiator URL is not specified in BiDi.
+      // @ts-expect-error non-standard property.
+      url: event.request['goog:resourceInitiator']?.url,
+      // @ts-expect-error non-standard property.
+      stack: event.request['goog:resourceInitiator']?.stack,
+    };
+    this.#navigation = event.navigation ?? undefined;
+    this.#isBlocked = event.isBlocked;
+    // @ts-expect-error non-standard attribute.
+    this.#resourceType = event.request['goog:resourceType'] ?? undefined;
+    // @ts-expect-error non-standard attribute.
+    this.#postData = event.request['goog:postData'] ?? undefined;
+    this.#hasPostData = (event.request.bodySize ?? 0) > 0;
+    this.#timings = event.request.timings;
   }
 
   #initialize() {
@@ -133,7 +168,7 @@ export class Request extends EventEmitter<{
         return;
       }
       this.#response = event.response;
-      this.#event.request.timings = event.request.timings;
+      this.#timings = event.request.timings;
       this.emit('response', this.#response);
     });
     sessionEmitter.on('network.responseCompleted', event => {
@@ -145,7 +180,7 @@ export class Request extends EventEmitter<{
         return;
       }
       this.#response = event.response;
-      this.#event.request.timings = event.request.timings;
+      this.#timings = event.request.timings;
       this.emit('success', this.#response);
       // In case this is a redirect.
       if (this.#response.status >= 300 && this.#response.status < 400) {
@@ -165,26 +200,19 @@ export class Request extends EventEmitter<{
     return this.#error;
   }
   get headers(): Bidi.Network.Header[] {
-    return this.#event.request.headers;
+    return this.#headers;
   }
   get id(): string {
-    return this.#event.request.request;
+    return this.#id;
   }
   get initiator(): Bidi.Network.Initiator | undefined {
-    return {
-      ...this.#event.initiator,
-      // Initiator URL is not specified in BiDi.
-      // @ts-expect-error non-standard property.
-      url: this.#event.request['goog:resourceInitiator']?.url,
-      // @ts-expect-error non-standard property.
-      stack: this.#event.request['goog:resourceInitiator']?.stack,
-    };
+    return this.#initiator;
   }
   get method(): string {
-    return this.#event.request.method;
+    return this.#method;
   }
   get navigation(): string | undefined {
-    return this.#event.navigation ?? undefined;
+    return this.#navigation;
   }
   get redirect(): Request | undefined {
     return this.#redirect;
@@ -203,24 +231,22 @@ export class Request extends EventEmitter<{
     return this.#response;
   }
   get url(): string {
-    return this.#event.request.url;
+    return this.#url;
   }
   get isBlocked(): boolean {
-    return this.#event.isBlocked;
+    return this.#isBlocked;
   }
 
   get resourceType(): string | undefined {
-    // @ts-expect-error non-standard attribute.
-    return this.#event.request['goog:resourceType'] ?? undefined;
+    return this.#resourceType;
   }
 
   get postData(): string | undefined {
-    // @ts-expect-error non-standard attribute.
-    return this.#event.request['goog:postData'] ?? undefined;
+    return this.#postData;
   }
 
   get hasPostData(): boolean {
-    return (this.#event.request.bodySize ?? 0) > 0;
+    return this.#hasPostData;
   }
 
   async continueRequest({
@@ -343,12 +369,16 @@ export class Request extends EventEmitter<{
   override [disposeSymbol](): void {
     this.emit('disposed', undefined);
     this.#disposables.dispose();
+    // Null the event to release the data: URL string (the main leak source).
+    // Cached getter values remain intact so request.id, request.url, etc.
+    // still work after disposal.
     this.#event = undefined as unknown as Bidi.Network.BeforeRequestSentParameters;
-    this.#response = undefined;
+    // Keep #response so callers can still check request.response as a
+    // "request finished" signal.
     super[disposeSymbol]();
   }
 
   timing(): Bidi.Network.FetchTimingInfo {
-    return this.#event.request.timings;
+    return this.#timings;
   }
 }
