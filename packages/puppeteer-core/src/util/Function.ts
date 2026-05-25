@@ -5,6 +5,14 @@
  */
 const createdFunctions = new Map<string, (...args: unknown[]) => unknown>();
 
+// Check if new Function() is allowed (fails with --disallow-code-generation-from-strings)
+let isFunctionConstructorAllowed = true;
+try {
+  new Function('');
+} catch {
+  isFunctionConstructorAllowed = false;
+}
+
 /**
  * Creates a function from a string.
  *
@@ -17,12 +25,22 @@ export const createFunction = (
   if (fn) {
     return fn;
   }
-  fn = function puppeteerBackendPlaceholder() {
-    throw new Error(
-      'This function is a serialization placeholder. It should not be called directly in the Node.js process -- it exists only to carry source code to the browser via CDP.',
-    );
-  } as (...args: unknown[]) => unknown;
-  fn.toString = () => functionValue;
+  
+  if (isFunctionConstructorAllowed) {
+    // Use new Function() when allowed (works in both Node.js and browser)
+    fn = new Function(`return ${functionValue}`)() as (
+      ...args: unknown[]
+    ) => unknown;
+  } else {
+    // Fallback to placeholder when new Function() is disallowed
+    fn = function puppeteerBackendPlaceholder() {
+      throw new Error(
+        'This function is a serialization placeholder. It should not be called directly in the Node.js process -- it exists only to carry source code to the browser via CDP.',
+      );
+    } as (...args: unknown[]) => unknown;
+    fn.toString = () => functionValue;
+  }
+  
   createdFunctions.set(functionValue, fn);
   return fn;
 };
